@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  wordpress:
+    image: wordpress:php8.2-apache
+    container_name: ${PROJECT_NAME}_wp
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: ${DB_USER}
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+      WORDPRESS_DB_NAME: ${DB_NAME}
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_HOME', 'https://${DOMAIN}');
+        define('WP_SITEURL', 'https://${DOMAIN}');
+        define('FORCE_SSL_ADMIN', true);
+    volumes:
+      - ./data/wordpress/wp-content:/var/www/html/wp-content
+      - ./data/wordpress/wp-config.php:/var/www/html/wp-config.php
+    networks:
+      - wp-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${PROJECT_NAME}-wp.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-wp.entrypoints=websecure"
+      - "traefik.http.routers.${PROJECT_NAME}-wp.tls.certresolver=myresolver"
+      - "traefik.http.services.${PROJECT_NAME}-wp.loadbalancer.server.port=80"
+
+  db:
+    image: mysql:8.0
+    container_name: ${PROJECT_NAME}_db
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    networks:
+      - wp-network
+    command: --default-authentication-plugin=mysql_native_password
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: ${PROJECT_NAME}_pma
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      PMA_HOST: db
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    networks:
+      - wp-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${PROJECT_NAME}-pma.rule=Host(`pma.${DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-pma.entrypoints=websecure"
+      - "traefik.http.routers.${PROJECT_NAME}-pma.tls.certresolver=myresolver"
+      - "traefik.http.services.${PROJECT_NAME}-pma.loadbalancer.server.port=80"
+
+  traefik:
+    image: traefik:v2.10
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      - "--serverstransport.insecureskipverify=true"  # Añade esta línea
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "./certs:/certs"  # Añade este volumen
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./letsencrypt:/letsencrypt"
+    networks:
+      - wp-network
+
+networks:
+  wp-network:
+    driver: bridge
