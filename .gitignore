@@ -1,2 +1,4 @@
 template/certs/cert.pem
 template/certs/key.pem
+
+auto-post-ai/
