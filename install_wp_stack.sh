@@ -125,7 +125,7 @@ DOMAIN=myproject.test
 ACME_EMAIL=your-real-email@example.com
 
 # Database
-DB_NAME=wordpress
+DB_NAME=myproject_db
 DB_USER=wp_user
 DB_PASSWORD=Wp@SecurePass123
 DB_ROOT_PASSWORD=Root@SecurePass123
@@ -182,6 +182,12 @@ sed -i "s/myproject/${PROJECT_NAME}/g" "$PROJECT_DIR"/.env
 sed -i "s/myproject\.test/${PROJECT_NAME}.test/g" "$PROJECT_DIR"/.env
 sed -i "s/your-real-email@example.com/your-email@${PROJECT_NAME}.test/g" "$PROJECT_DIR"/.env
 
+# Leer valores del .env recién creado
+DB_NAME=$(grep 'DB_NAME=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
+DB_USER=$(grep 'DB_USER=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
+DB_PASSWORD=$(grep 'DB_PASSWORD=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
+DOMAIN=$(grep 'DOMAIN=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
+
 # Configurar hosts (solo en WSL)
 if grep -q "WSL" /proc/version; then
   echo "🔧 Configurando archivo hosts en WSL..."
@@ -220,8 +226,8 @@ cat > "$PROJECT_DIR"/start.sh <<EOF
 #!/bin/bash
 cd "$PROJECT_DIR"
 docker-compose up -d
-echo "✅ WordPress: https://${PROJECT_NAME}.test"
-echo "✅ phpMyAdmin: https://pma.${PROJECT_NAME}.test"
+echo "✅ WordPress: https://${DOMAIN}"
+echo "✅ phpMyAdmin: https://pma.${DOMAIN}"
 EOF
 
 cat > "$PROJECT_DIR"/stop.sh <<EOF

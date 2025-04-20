@@ -73,12 +73,12 @@ services:
       - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
       - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
-      - "--serverstransport.insecureskipverify=true"  # Añade esta línea
+      - "--log.level=DEBUG"
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - "./certs:/certs"  # Añade este volumen
+      - "./certs:/certs"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./letsencrypt:/letsencrypt"
     networks:
