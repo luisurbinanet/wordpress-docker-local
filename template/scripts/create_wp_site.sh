@@ -54,15 +54,15 @@ fi
 echo "Creando wp-config.php..."
 cat > "$PROJECT_DIR"/data/wordpress/wp-config.php <<EOF
 <?php
-define('DB_NAME', 'wordpress');
-define('DB_USER', 'wp_user');
-define('DB_PASSWORD', 'Wp@SecurePass123');
+define('DB_NAME', '${DB_NAME}');
+define('DB_USER', '${DB_USER}');
+define('DB_PASSWORD', '${DB_PASSWORD}');
 define('DB_HOST', 'db');
 define('DB_CHARSET', 'utf8mb4');
 define('DB_COLLATE', '');
 
-define('WP_HOME', 'https://${PROJECT_NAME}.test');
-define('WP_SITEURL', 'https://${PROJECT_NAME}.test');
+define('WP_HOME', 'https://${DOMAIN}');
+define('WP_SITEURL', 'https://${DOMAIN}');
 define('FORCE_SSL_ADMIN', true);
 \$_SERVER['HTTPS'] = 'on';
 

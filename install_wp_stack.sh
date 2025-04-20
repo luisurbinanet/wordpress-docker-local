@@ -3,6 +3,17 @@ set -e
 
 echo "🚀 Configurando entorno Docker para WordPress"
 
+# Verificar requisitos
+if ! command -v docker &> /dev/null; then
+    echo "❌ Docker no está instalado. Por favor instala Docker primero."
+    exit 1
+fi
+
+if ! command -v docker-compose &> /dev/null; then
+    echo "❌ docker-compose no está instalado. Por favor instálalo primero."
+    exit 1
+fi
+
 # 1. Configurar permisos de Docker
 if ! groups | grep -q docker; then
     echo "🔧 Añadiendo usuario al grupo docker..."
@@ -90,12 +101,12 @@ services:
       - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
       - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
-      - "--serverstransport.insecureskipverify=true"  # Añade esta línea
+      - "--log.level=DEBUG"
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - "./certs:/certs"  # Añade este volumen
+      - "./certs:/certs"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./letsencrypt:/letsencrypt"
     networks:
@@ -182,15 +193,15 @@ fi
 echo "Creando wp-config.php..."
 cat > "$PROJECT_DIR"/data/wordpress/wp-config.php <<EOF
 <?php
-define('DB_NAME', 'wordpress');
-define('DB_USER', 'wp_user');
-define('DB_PASSWORD', 'Wp@SecurePass123');
+define('DB_NAME', '${DB_NAME}');
+define('DB_USER', '${DB_USER}');
+define('DB_PASSWORD', '${DB_PASSWORD}');
 define('DB_HOST', 'db');
 define('DB_CHARSET', 'utf8mb4');
 define('DB_COLLATE', '');
 
-define('WP_HOME', 'https://${PROJECT_NAME}.test');
-define('WP_SITEURL', 'https://${PROJECT_NAME}.test');
+define('WP_HOME', 'https://${DOMAIN}');
+define('WP_SITEURL', 'https://${DOMAIN}');
 define('FORCE_SSL_ADMIN', true);
 \$_SERVER['HTTPS'] = 'on';
 
