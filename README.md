@@ -92,4 +92,4 @@ Para crear un nuevo proyecto WordPress:
 
 ---
 
-Con estos pasos deberías poder configurar y desplegar nuevos sitios WordPress usando Docker de manera sencilla. ¡Disfruta desarrollando con WordPress!
+Con estos pasos deberías poder configurar y desplegar nuevos sitios WordPress usando Docker de manera sencilla. Cualquier error o duda, dejalo en los comentarios
