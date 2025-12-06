@@ -24,7 +24,9 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.${PROJECT_NAME}-wp.rule=Host(`${DOMAIN}`)"
       - "traefik.http.routers.${PROJECT_NAME}-wp.entrypoints=websecure"
-      - "traefik.http.routers.${PROJECT_NAME}-wp.tls.certresolver=myresolver"
+      - "traefik.http.routers.${PROJECT_NAME}-wp.tls=true"
+      - "traefik.http.routers.${PROJECT_NAME}-wp.tls.certfile=/certs/cert.pem"
+      - "traefik.http.routers.${PROJECT_NAME}-wp.tls.keyfile=/certs/key.pem"
       - "traefik.http.services.${PROJECT_NAME}-wp.loadbalancer.server.port=80"
 
   db:
@@ -60,29 +62,42 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.${PROJECT_NAME}-pma.rule=Host(`pma.${DOMAIN}`)"
       - "traefik.http.routers.${PROJECT_NAME}-pma.entrypoints=websecure"
-      - "traefik.http.routers.${PROJECT_NAME}-pma.tls.certresolver=myresolver"
+      - "traefik.http.routers.${PROJECT_NAME}-pma.tls=true"
+      - "traefik.http.routers.${PROJECT_NAME}-pma.tls.certfile=/certs/cert.pem"
+      - "traefik.http.routers.${PROJECT_NAME}-pma.tls.keyfile=/certs/key.pem"
       - "traefik.http.services.${PROJECT_NAME}-pma.loadbalancer.server.port=80"
 
   traefik:
     image: traefik:v2.10
     command:
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=wp-network"
+      - "--providers.docker.endpoint=unix:///var/run/docker.sock"
+      - "--providers.docker.swarmmode=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
       - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
-      - "--log.level=DEBUG"
+      - "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--log.level=INFO"
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - "./certs:/certs"
+      - "./certs:/certs:ro"
+      - "./traefik.yml:/etc/traefik/dynamic/traefik.yml:ro"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./letsencrypt:/letsencrypt"
     networks:
       - wp-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 networks:
   wp-network:

@@ -7,7 +7,7 @@ if [ -z "$1" ]; then
 fi
 
 PROJECT_NAME=$1
-BASE_DIR="$HOME/docker/wordpress"
+BASE_DIR="$HOME/projects/wordpress"
 TEMPLATE_DIR="$BASE_DIR/template"
 PROJECT_DIR="$BASE_DIR/$PROJECT_NAME"
 
@@ -30,12 +30,18 @@ fi
 
 # Crear estructura del proyecto
 echo "Creando directorio del proyecto..."
-mkdir -p "$PROJECT_DIR"/{data/{mysql,wordpress},letsencrypt}
+mkdir -p "$PROJECT_DIR"/{data/{mysql,wordpress},letsencrypt,certs}
 
 # Copiar archivos base
 echo "Copiando archivos de configuración..."
 cp "$TEMPLATE_DIR/docker-compose.yml" "$PROJECT_DIR/"
 cp "$TEMPLATE_DIR/.env.example" "$PROJECT_DIR/.env"
+if [ -f "$TEMPLATE_DIR/traefik.yml" ]; then
+    cp "$TEMPLATE_DIR/traefik.yml" "$PROJECT_DIR/traefik.yml"
+fi
+if [ -f "$TEMPLATE_DIR/traefik.yml" ]; then
+    cp "$TEMPLATE_DIR/traefik.yml" "$PROJECT_DIR/traefik.yml"
+fi
 
 # Configurar .env
 echo "Configurando variables de entorno..."
@@ -48,6 +54,20 @@ DB_NAME=$(grep 'DB_NAME=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
 DB_USER=$(grep 'DB_USER=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
 DB_PASSWORD=$(grep 'DB_PASSWORD=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
 DOMAIN=$(grep 'DOMAIN=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
+
+# Configurar traefik.yml si existe (después de leer DOMAIN)
+if [ -f "$PROJECT_DIR/traefik.yml" ]; then
+    echo "Configurando traefik.yml..."
+    sed -i "s/\${PROJECT_NAME}/${PROJECT_NAME}/g" "$PROJECT_DIR"/traefik.yml
+    sed -i "s/\${DOMAIN}/${DOMAIN}/g" "$PROJECT_DIR"/traefik.yml
+fi
+
+# Generar certificados SSL para el dominio específico
+echo "Generando certificados SSL para ${DOMAIN}..."
+openssl req -newkey rsa:2048 -nodes -keyout "$PROJECT_DIR/certs/key.pem" \
+  -x509 -days 365 -out "$PROJECT_DIR/certs/cert.pem" \
+  -subj "/CN=${DOMAIN}" \
+  -addext "subjectAltName=DNS:${DOMAIN},DNS:pma.${DOMAIN},DNS:*.${DOMAIN},IP:127.0.0.1"
 
 # Configurar hosts (solo en WSL)
 if grep -q "WSL" /proc/version; then

@@ -22,10 +22,17 @@ if ! groups | grep -q docker; then
 fi
 
 # 2. Crear estructura de directorios
-mkdir -p ~/docker/wordpress/template/{data/{mysql,wordpress},scripts,certs}
+# Asegurar que ~/projects existe (puede ser un enlace simbólico a Windows)
+if [ ! -d "$HOME/projects" ]; then
+    echo "📁 Creando directorio ~/projects..."
+    mkdir -p "$HOME/projects"
+fi
+
+echo "📁 Creando estructura de directorios en ~/projects/wordpress..."
+mkdir -p ~/projects/wordpress/template/{data/{mysql,wordpress},scripts,certs}
 
 # Archivo docker-compose.yml
-cat > ~/docker/wordpress/template/docker-compose.yml <<'EOL'
+cat > ~/projects/wordpress/template/docker-compose.yml <<'EOL'
 version: '3.8'
 
 services:
@@ -52,7 +59,9 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.${PROJECT_NAME}-wp.rule=Host(`${DOMAIN}`)"
       - "traefik.http.routers.${PROJECT_NAME}-wp.entrypoints=websecure"
-      - "traefik.http.routers.${PROJECT_NAME}-wp.tls.certresolver=myresolver"
+      - "traefik.http.routers.${PROJECT_NAME}-wp.tls=true"
+      - "traefik.http.routers.${PROJECT_NAME}-wp.tls.certfile=/certs/cert.pem"
+      - "traefik.http.routers.${PROJECT_NAME}-wp.tls.keyfile=/certs/key.pem"
       - "traefik.http.services.${PROJECT_NAME}-wp.loadbalancer.server.port=80"
 
   db:
@@ -88,7 +97,9 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.${PROJECT_NAME}-pma.rule=Host(`pma.${DOMAIN}`)"
       - "traefik.http.routers.${PROJECT_NAME}-pma.entrypoints=websecure"
-      - "traefik.http.routers.${PROJECT_NAME}-pma.tls.certresolver=myresolver"
+      - "traefik.http.routers.${PROJECT_NAME}-pma.tls=true"
+      - "traefik.http.routers.${PROJECT_NAME}-pma.tls.certfile=/certs/cert.pem"
+      - "traefik.http.routers.${PROJECT_NAME}-pma.tls.keyfile=/certs/key.pem"
       - "traefik.http.services.${PROJECT_NAME}-pma.loadbalancer.server.port=80"
 
   traefik:
@@ -96,17 +107,21 @@ services:
     command:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=wp-network"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
       - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
-      - "--log.level=DEBUG"
+      - "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--log.level=INFO"
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - "./certs:/certs"
+      - "./certs:/certs:ro"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./letsencrypt:/letsencrypt"
     networks:
@@ -117,8 +132,45 @@ networks:
     driver: bridge
 EOL
 
+# Archivo traefik.yml (configuración estática para solucionar problemas en WSL2)
+cat > ~/projects/wordpress/template/traefik.yml <<'EOL'
+http:
+  routers:
+    ${PROJECT_NAME}-wp:
+      rule: "Host(\`${DOMAIN}\`)"
+      entryPoints:
+        - websecure
+      service: ${PROJECT_NAME}-wp
+      tls: {}
+    
+    ${PROJECT_NAME}-pma:
+      rule: "Host(\`pma.${DOMAIN}\`)"
+      entryPoints:
+        - websecure
+      service: ${PROJECT_NAME}-pma
+      tls: {}
+
+  services:
+    ${PROJECT_NAME}-wp:
+      loadBalancer:
+        servers:
+          - url: "http://${PROJECT_NAME}_wp:80"
+    
+    ${PROJECT_NAME}-pma:
+      loadBalancer:
+        servers:
+          - url: "http://${PROJECT_NAME}_pma:80"
+
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /certs/cert.pem
+        keyFile: /certs/key.pem
+EOL
+
 # Archivo .env.example
-cat > ~/docker/wordpress/template/.env.example <<'EOL'
+cat > ~/projects/wordpress/template/.env.example <<'EOL'
 # Project Settings
 PROJECT_NAME=myproject
 DOMAIN=myproject.test
@@ -136,7 +188,7 @@ WP_ENV=development
 EOL
 
 # Script para crear proyectos
-cat > ~/docker/wordpress/template/scripts/create_wp_site.sh <<'EOL'
+cat > ~/projects/wordpress/template/scripts/create_wp_site.sh <<'EOL'
 #!/bin/bash
 set -e
 
@@ -146,7 +198,7 @@ if [ -z "$1" ]; then
 fi
 
 PROJECT_NAME=$1
-BASE_DIR="$HOME/docker/wordpress"
+BASE_DIR="$HOME/projects/wordpress"
 TEMPLATE_DIR="$BASE_DIR/template"
 PROJECT_DIR="$BASE_DIR/$PROJECT_NAME"
 
@@ -169,12 +221,15 @@ fi
 
 # Crear estructura del proyecto
 echo "Creando directorio del proyecto..."
-mkdir -p "$PROJECT_DIR"/{data/{mysql,wordpress},letsencrypt}
+mkdir -p "$PROJECT_DIR"/{data/{mysql,wordpress},letsencrypt,certs}
 
 # Copiar archivos base
 echo "Copiando archivos de configuración..."
 cp "$TEMPLATE_DIR/docker-compose.yml" "$PROJECT_DIR/"
 cp "$TEMPLATE_DIR/.env.example" "$PROJECT_DIR/.env"
+if [ -f "$TEMPLATE_DIR/traefik.yml" ]; then
+    cp "$TEMPLATE_DIR/traefik.yml" "$PROJECT_DIR/traefik.yml"
+fi
 
 # Configurar .env
 echo "Configurando variables de entorno..."
@@ -187,6 +242,20 @@ DB_NAME=$(grep 'DB_NAME=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
 DB_USER=$(grep 'DB_USER=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
 DB_PASSWORD=$(grep 'DB_PASSWORD=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
 DOMAIN=$(grep 'DOMAIN=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
+
+# Configurar traefik.yml si existe (después de leer DOMAIN)
+if [ -f "$PROJECT_DIR/traefik.yml" ]; then
+    echo "Configurando traefik.yml..."
+    sed -i "s/\${PROJECT_NAME}/${PROJECT_NAME}/g" "$PROJECT_DIR"/traefik.yml
+    sed -i "s/\${DOMAIN}/${DOMAIN}/g" "$PROJECT_DIR"/traefik.yml
+fi
+
+# Generar certificados SSL para el dominio específico
+echo "Generando certificados SSL para ${DOMAIN}..."
+openssl req -newkey rsa:2048 -nodes -keyout "$PROJECT_DIR/certs/key.pem" \
+  -x509 -days 365 -out "$PROJECT_DIR/certs/cert.pem" \
+  -subj "/CN=${DOMAIN}" \
+  -addext "subjectAltName=DNS:${DOMAIN},DNS:pma.${DOMAIN},DNS:*.${DOMAIN},IP:127.0.0.1"
 
 # Configurar hosts (solo en WSL)
 if grep -q "WSL" /proc/version; then
@@ -246,19 +315,22 @@ echo "🔹 Para detener: cd $PROJECT_DIR && ./stop.sh"
 EOL
 
 # Configurar permisos
-chmod +x ~/docker/wordpress/template/scripts/create_wp_site.sh
+chmod +x ~/projects/wordpress/template/scripts/create_wp_site.sh
 
 # Crear enlace simbólico
-ln -sf ~/docker/wordpress/template/scripts/create_wp_site.sh ~/docker/wordpress/create_wp_site.sh
-chmod +x ~/docker/wordpress/create_wp_site.sh
+ln -sf ~/projects/wordpress/template/scripts/create_wp_site.sh ~/projects/wordpress/create_wp_site.sh
+chmod +x ~/projects/wordpress/create_wp_site.sh
 
 # 4. Generar certificado autofirmado inicial
-openssl req -newkey rsa:2048 -nodes -keyout ~/docker/wordpress/template/certs/key.pem \
-  -x509 -days 365 -out ~/docker/wordpress/template/certs/cert.pem \
+openssl req -newkey rsa:2048 -nodes -keyout ~/projects/wordpress/template/certs/key.pem \
+  -x509 -days 365 -out ~/projects/wordpress/template/certs/cert.pem \
   -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost"
 
 
 echo "✅ Instalación completada!"
+echo "📁 Los proyectos se crearán en: ~/projects/wordpress/"
+echo "🔗 Esto está vinculado a tu carpeta de Windows para respaldo automático"
+echo ""
 echo "Ahora puedes crear nuevos sitios con:"
-echo "  ~/docker/wordpress/create_wp_site.sh nombre-del-sitio"
+echo "  ~/projects/wordpress/create_wp_site.sh nombre-del-sitio"
 

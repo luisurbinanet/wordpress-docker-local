@@ -1,4 +1,21 @@
+# Certificados SSL (no versionar)
 template/certs/cert.pem
 template/certs/key.pem
+**/certs/cert.pem
+**/certs/key.pem
 
-auto-post-ai/
+# Datos de proyectos (no versionar)
+**/data/
+**/letsencrypt/
+
+# Archivos de entorno
+**/.env
+**/.env.local
+
+# Archivos temporales
+**/*.log
+**/.DS_Store
+**/Thumbs.db
+
+# Directorios de proyectos creados
+# (mantener solo el template)
