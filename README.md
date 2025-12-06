@@ -12,6 +12,9 @@ Este repositorio contiene la configuración y los scripts necesarios para levant
 - ✅ Redirección automática HTTP → HTTPS
 - ✅ Scripts de instalación y gestión automatizados
 - ✅ Soporte para múltiples proyectos WordPress
+- ✅ Authentication Keys and Salts generadas automáticamente
+- ✅ Configuración JWT Authentication incluida
+- ✅ Configuración Google reCAPTCHA V3 incluida
 
 ## 📋 Requisitos
 
@@ -275,7 +278,29 @@ DB_ROOT_PASSWORD=Root@SecurePass123
 # WordPress
 WP_DEBUG=1
 WP_ENV=development
+
+# JWT Authentication
+JWT_AUTH_SECRET_KEY=your-jwt-secret-key-here
+JWT_AUTH_CORS_ENABLE=true
+
+# Google reCAPTCHA V3
+RECAPTCHA_SITE_KEY=your-recaptcha-site-key-here
+RECAPTCHA_SECRET_KEY=your-recaptcha-secret-key-here
 ```
+
+**Nota:** 
+- El `JWT_AUTH_SECRET_KEY` se genera **automáticamente** para cada nueva instalación (64 caracteres aleatorios).
+- Las claves de reCAPTCHA se generan como placeholders automáticamente. Para usar reCAPTCHA en producción, reemplázalas con tus claves reales de [Google reCAPTCHA](https://www.google.com/recaptcha/admin).
+
+### Configuración de wp-config.php
+
+Cada proyecto WordPress incluye automáticamente en `wp-config.php`:
+
+1. **Authentication Unique Keys and Salts:** Generadas automáticamente desde la API de WordPress o usando OpenSSL
+2. **JWT Authentication Configuration:** Para autenticación mediante tokens JWT
+3. **Google reCAPTCHA V3 Configuration:** Para protección contra spam y bots
+
+Estas configuraciones se agregan automáticamente al crear un nuevo proyecto.
 
 ## 🔒 Seguridad
 

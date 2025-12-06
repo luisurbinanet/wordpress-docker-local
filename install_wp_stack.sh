@@ -185,6 +185,14 @@ DB_ROOT_PASSWORD=Root@SecurePass123
 # WordPress
 WP_DEBUG=1
 WP_ENV=development
+
+# JWT Authentication
+JWT_AUTH_SECRET_KEY=your-jwt-secret-key-here
+JWT_AUTH_CORS_ENABLE=true
+
+# Google reCAPTCHA V3
+RECAPTCHA_SITE_KEY=your-recaptcha-site-key-here
+RECAPTCHA_SECRET_KEY=your-recaptcha-secret-key-here
 EOL
 
 # Script para crear proyectos
@@ -237,11 +245,45 @@ sed -i "s/myproject/${PROJECT_NAME}/g" "$PROJECT_DIR"/.env
 sed -i "s/myproject\.test/${PROJECT_NAME}.test/g" "$PROJECT_DIR"/.env
 sed -i "s/your-real-email@example.com/your-email@${PROJECT_NAME}.test/g" "$PROJECT_DIR"/.env
 
+# Generar tokens automáticamente para cada instalación
+echo "🔐 Generando tokens de seguridad automáticamente..."
+
+# Generar JWT Secret Key automáticamente
+JWT_SECRET=$(openssl rand -base64 64 | tr -d '\n' | tr -d '/')
+sed -i "s|JWT_AUTH_SECRET_KEY=.*|JWT_AUTH_SECRET_KEY=${JWT_SECRET}|g" "$PROJECT_DIR"/.env
+
+# Generar valores placeholder para reCAPTCHA (el usuario puede cambiarlos después)
+RECAPTCHA_SITE_PLACEHOLDER="recaptcha-site-key-$(openssl rand -hex 16)"
+RECAPTCHA_SECRET_PLACEHOLDER="recaptcha-secret-key-$(openssl rand -hex 16)"
+sed -i "s|RECAPTCHA_SITE_KEY=.*|RECAPTCHA_SITE_KEY=${RECAPTCHA_SITE_PLACEHOLDER}|g" "$PROJECT_DIR"/.env
+sed -i "s|RECAPTCHA_SECRET_KEY=.*|RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_PLACEHOLDER}|g" "$PROJECT_DIR"/.env
+
+echo "✅ Tokens generados correctamente"
+
 # Leer valores del .env recién creado
 DB_NAME=$(grep 'DB_NAME=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
 DB_USER=$(grep 'DB_USER=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
 DB_PASSWORD=$(grep 'DB_PASSWORD=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
 DOMAIN=$(grep 'DOMAIN=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
+JWT_AUTH_SECRET_KEY=$(grep 'JWT_AUTH_SECRET_KEY=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
+JWT_AUTH_CORS_ENABLE=$(grep 'JWT_AUTH_CORS_ENABLE=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
+RECAPTCHA_SITE_KEY=$(grep 'RECAPTCHA_SITE_KEY=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
+RECAPTCHA_SECRET_KEY=$(grep 'RECAPTCHA_SECRET_KEY=' "$PROJECT_DIR"/.env | cut -d '=' -f2)
+
+# Generar Authentication Keys and Salts de WordPress
+echo "Generando Authentication Keys and Salts de WordPress..."
+WP_KEYS=$(curl -s https://api.wordpress.org/secret-key/1.1/salt/ 2>/dev/null || echo "")
+if [ -z "$WP_KEYS" ]; then
+    # Si no se puede obtener de la API, generar valores aleatorios
+    WP_KEYS="define('AUTH_KEY',         '$(openssl rand -base64 48)');
+define('SECURE_AUTH_KEY',  '$(openssl rand -base64 48)');
+define('LOGGED_IN_KEY',    '$(openssl rand -base64 48)');
+define('NONCE_KEY',        '$(openssl rand -base64 48)');
+define('AUTH_SALT',        '$(openssl rand -base64 48)');
+define('SECURE_AUTH_SALT', '$(openssl rand -base64 48)');
+define('LOGGED_IN_SALT',   '$(openssl rand -base64 48)');
+define('NONCE_SALT',       '$(openssl rand -base64 48)');"
+fi
 
 # Configurar traefik.yml si existe (después de leer DOMAIN)
 if [ -f "$PROJECT_DIR/traefik.yml" ]; then
@@ -281,6 +323,17 @@ define('FORCE_SSL_ADMIN', true);
 \$_SERVER['HTTPS'] = 'on';
 
 \$table_prefix = 'wp_';
+
+/* Authentication Unique Keys and Salts */
+${WP_KEYS}
+
+/* JWT Authentication Configuration */
+define('JWT_AUTH_SECRET_KEY', '${JWT_AUTH_SECRET_KEY}');
+define('JWT_AUTH_CORS_ENABLE', ${JWT_AUTH_CORS_ENABLE});
+
+/* Google reCAPTCHA V3 Configuration */
+define('RECAPTCHA_SITE_KEY', '${RECAPTCHA_SITE_KEY}');
+define('RECAPTCHA_SECRET_KEY', '${RECAPTCHA_SECRET_KEY}');
 
 if (!defined('ABSPATH')) {
     define('ABSPATH', __DIR__ . '/');

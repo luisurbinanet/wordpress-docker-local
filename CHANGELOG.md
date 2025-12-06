@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0] - 2025-12-06
+
+### ✨ Nuevas Características
+- Agregada generación automática de Authentication Unique Keys and Salts de WordPress
+- Configuración JWT Authentication incluida en wp-config.php
+- Configuración Google reCAPTCHA V3 incluida en wp-config.php
+- **Generación automática de JWT secret key para cada nueva instalación** (64 caracteres aleatorios)
+- **Generación automática de placeholders para reCAPTCHA keys**
+
+### 📝 Mejoras
+- Actualizada documentación con información sobre nuevas configuraciones
+- Variables de entorno actualizadas para incluir JWT y reCAPTCHA
+
 ## [1.1.0] - 2025-12-06
 
 ### ✨ Nuevas Características
